@@ -1,0 +1,170 @@
+import unittest
+from library import Calendar
+from library import Book
+from library import Patron
+from library import Library
+
+class TestCalendar(unittest.TestCase):
+    
+    def test_constructor(self):
+        due_date=Calendar()
+        self.assertEqual(0, due_date.get_date())
+
+    def test_advance(self):
+        calendar=Calendar()
+        new_calendar=calendar.advance()
+        self.assertEqual(0, calendar.get_date())
+        self.assertEqual(1, new_calendar.get_date())
+
+class TestBook(unittest.TestCase):
+    
+    def test_constructor(self):
+        book=Book(1,"20,000 Leagues Under the Sea","Jules Verne")
+        self.assertEqual("1: 20,000 Leagues Under the Sea, by Jules Verne", str(book))
+        self.assertIsNone(book.get_due_date())
+
+    def test_check_out(self):
+        book=Book(1,"20,000 Leagues Under the Sea","Jules Verne")
+        due_date=Calendar()
+        book.check_out(due_date)
+        self.assertEqual(due_date,book.get_due_date())
+
+    def test_check_in(self):
+        book=Book(1,"20,000 Leagues Under the Sea","Jules Verne")
+        due_date=Calendar()
+        book.check_out(due_date)
+        book.check_in()
+        self.assertIsNone(book.get_due_date())
+        
+class TestPatron(unittest.TestCase):
+    
+    def test_constructor(self):
+        library=Library()
+        patron=Patron("Jules Verne",library)
+        self.assertEqual("Jules Verne",patron.get_name())
+        
+    def test_check_out(self):
+        book=Book(1,"20,000 Leagues Under the Sea","Jules Verne")
+        library=Library();
+        patron=Patron("Andre Brink",library)
+        patron.check_out(book)
+        self.assertEqual({book},patron.get_books())
+
+    def test_give_back(self):
+        book=Book(1,"20,000 Leagues Under the Sea","Jules Verne")
+        library=Library();
+        patron=Patron("Andre Brink",library)
+        patron.check_out(book)
+        patron.give_back(book)
+        self.assertEqual(set(),patron.get_books())
+        
+    def test_get_overdue_books(self):
+        book1=Book(1,"20,000 Leagues Under the Sea","Jules Verne")
+        book2=Book(2,"52 Pick-up","Elmore Leonard")
+        library=Library();
+        patron=Patron("Andre Brink",library)
+        library.open()
+        patron.check_out(book1)
+        library.close()
+        library.open()
+        patron.check_out(book2)
+        library.close()
+        for _ in range(5):
+            library.open()
+            library.close()
+        self.assertEqual(set(),patron.get_overdue_books())
+        library.open()
+        library.close()
+        self.assertEqual({book1},patron.get_overdue_books())
+        library.open()
+        library.close()
+        self.assertEqual({book1,book2},patron.get_overdue_books())
+
+class TestLibrary(unittest.TestCase):
+    
+    def setUp(self):
+        self.library=Library()
+        
+    def test_constructor(self):
+        self.assertEqual(1065, len(self.library.get_books()))
+        self.assertEqual(0, self.library.get_calendar().get_date())
+        self.assertEqual(False, self.library.is_open())
+        self.assertIsNone(self.library.get_patron())
+
+    def test_open_close(self):
+        self.assertEqual("Today is day 1.",self.library.open())
+        self.assertRaises(Exception, self.library.open)
+        self.assertEqual("Good night.", self.library.close())
+        self.assertEqual("Today is day 2.",self.library.open())
+        self.assertEqual("Good night.", self.library.close())
+        self.assertRaises(Exception, self.library.close)
+
+    def test_issue_card_serve(self):
+        self.assertRaises(Exception, self.library.issue_card,"mary")
+        self.assertRaises(Exception, self.library.serve,"mary")
+        self.library.open()
+        self.assertEqual("mary does not have a library card.", self.library.serve("mary"))
+        self.assertEqual("Library card issued to mary.", self.library.issue_card("mary"))        
+        self.assertEqual("mary already has a library card.", self.library.issue_card("mary"))
+        self.assertEqual("Now serving mary.", self.library.serve("mary"))
+
+    def test_search(self):
+        self.assertEqual("Search string must contain at least four characters.", self.library.search(""))
+        self.assertEqual("Search string must contain at least four characters.", self.library.search("sea"))
+        self.assertEqual("No books found.", self.library.search("test the sea"))
+        result_str="1: 20,000 Leagues Under the Sea, by Jules Verne\n838: The Old Man and the Sea, by Ernest Hemingway\n"
+        self.assertEqual(result_str, self.library.search("the sea"))
+        self.assertEqual(result_str, self.library.search("The Sea"))
+        
+        
+    def test_quit(self):
+        library=Library()
+        self.assertEqual("The library is now closed for renovations.", library.quit())
+        library=Library()
+        library.open()
+        self.assertEqual("The library is now closed for renovations.", library.quit())
+        library=Library()
+        library.open()
+        library.close()
+        self.assertEqual("The library is now closed for renovations.", library.quit())
+
+    def test_work_through(self):
+        self.assertRaises(Exception, self.library.check_out,"1")
+        self.library.open()
+        self.library.issue_card("mary")
+        self.library.issue_card("john")
+        self.assertRaises(Exception, self.library.check_out,"1")
+        self.library.serve("mary")
+        self.assertEqual("1 books have been checked out to mary.", self.library.check_out(1))
+        self.assertRaises(Exception, self.library.check_out,"4","5","6")
+        self.assertEqual("2 books have been checked out to mary.", self.library.check_out(4,5))
+        self.library.close()
+        self.assertRaises(Exception, self.library.check_in,"1")
+        self.library.open()
+        self.assertRaises(Exception, self.library.check_in,"1")
+        self.library.serve("mary")
+        self.assertRaises(Exception, self.library.check_in,"8")
+        self.assertEqual("mary has returned 2 books.", self.library.check_in(1,4))
+        self.library.serve("john")
+        self.assertRaises(Exception, self.library.check_out,"5")
+        self.assertEqual("2 books have been checked out to john.", self.library.check_out(4,7))
+        self.library.close()
+        for _ in range(4):
+            self.library.open()
+            self.library.close()
+        self.library.open()
+        self.assertRaises(Exception, self.library.find_overdue_books)
+        self.library.serve("mary")
+        self.assertIsNone(self.library.find_overdue_books())
+        self.library.close()
+        self.assertEqual("No books are overdue.", self.library.find_all_overdue_books())
+        self.library.open()
+        self.assertEqual('patron mary:\n  5: A Bend in the River, by V. S. Naipaul\n', self.library.find_all_overdue_books())
+        self.library.serve("mary")
+        self.assertEqual('5: A Bend in the River, by V. S. Naipaul\n', self.library.find_overdue_books())
+        self.assertEqual('1 books have been renewed for mary.', self.library.renew(5))
+        self.assertIsNone(self.library.find_overdue_books())
+        self.assertEqual("No books are overdue.", self.library.find_all_overdue_books())
+        
+if __name__ == "__main__":
+    unittest.main()
